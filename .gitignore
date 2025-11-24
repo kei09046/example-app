@@ -1,0 +1,10 @@
+/.vscode
+/CMakeCache.txt
+/CMakeFiles
+/Makefile
+/build
+/cmake_install.cmake
+/detect_cuda_compute_capabilities.cu
+/detect_cuda_version.cc
+/gmon.out
+/singlethread

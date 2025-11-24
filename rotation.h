@@ -1,0 +1,49 @@
+#ifndef ROTATION_H
+#define ROTATION_H
+
+#include <iostream>
+#include <vector>
+#include <array>
+#include "policyvalue.h"
+
+using inputMatrix = std::array<float, inputSize * inputDepth>;
+using outputMatrix = std::array<float, outputSize>;
+using delete_flag = char; // decides whether data gets deleted during buffer replacement or training
+using TrainData = std::tuple<inputMatrix, outputMatrix, float, delete_flag>;
+
+inputMatrix rotate90(const inputMatrix mat);
+
+inputMatrix reflectHorizontal(const inputMatrix mat);
+
+std::vector<inputMatrix> generateDihedralTransformations(const inputMatrix mat);
+
+
+outputMatrix rotate90(const outputMatrix mat);
+
+outputMatrix reflectHorizontal(const outputMatrix mat);
+
+std::vector<outputMatrix> generateDihedralTransformations(const outputMatrix mat);
+
+std::vector<TrainData*> generateDihedralTransformations(const TrainData& data);
+
+inline std::pair<int,int> rot(int s, int r, int c, int N) {
+    switch(s){
+        case 0: return {r, c};           // identity
+        case 1: return {c, N-1-r};       // rot90
+        case 2: return {N-1-r, N-1-c};   // rot180
+        case 3: return {N-1-c, r};       // rot270
+        case 4: return {r, N-1-c};       // flipH
+        case 5: return {N-1-r, c};       // flipV
+        case 6: return {N-1-c, N-1-r};   // anti-diag
+        case 7: return {c, r};           // diag
+    }
+    return {r, c};
+}
+
+PolicyValueOutput rotateNNOutput(const PolicyValueOutput& original, const std::vector<std::pair<int, int>>& legal, int s, int N);
+
+std::vector<PolicyValueOutput> rotateAllNNOutputs(const PolicyValueOutput& original, const std::vector<std::pair<int,int>>& legal, int N);
+
+std::pair<PolicyValueOutput, std::vector<std::pair<int,int>>> rotateNNOutputandLegal(const PolicyValueOutput& original,
+               const std::vector<std::pair<int,int>>& legal, int N, int s); 
+#endif

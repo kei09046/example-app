@@ -1,0 +1,11 @@
+modelv -> modelb : fix bug that mcts_player not getting updated even after inference_model gets updated. fix temp to 1.0f -> 0.5f, after move 4 *10->*5
+modelb -> modelc : boardsize 5*5 -> 7*7
+modelc -> modeld : 
+1. apply multithreading in self_play (thread : 1 -> 4) performance gain : ~12% temp back to modelv setting
+2. optimized environment interaction part
+3. eval cache + transposition table implemented
+4. (important) fix cPuct 0.1f -> 2.0f
+test result :
+eval_cache + dihedral transformation : no big improvement over eval_cache. Cache hit rate difference were minimal(<1%)
+
+
