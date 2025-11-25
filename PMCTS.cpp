@@ -7,12 +7,14 @@ thread_local size_t searchTime = 0;
 thread_local size_t makeMoveTime = 0;
 thread_local size_t copyTime = 0;
 thread_local size_t extraTime = 0;
+thread_local size_t evalCacheInsertTime = 0;
+thread_local size_t evalCacheFindTime = 0;
 thread_local size_t evalCacheHit = 0;
 thread_local size_t evalCacheNorotHit = 0;
 
 std::vector<int> MCTS::getTimeStats() const{
     std::vector<int> stats;
-    stats.reserve(8);
+    stats.reserve(10);
     stats[0] = expandTime;
     stats[1] = evaluateTime;
     stats[2] = searchTime;
@@ -21,11 +23,14 @@ std::vector<int> MCTS::getTimeStats() const{
     stats[5] = extraTime;
     stats[6] = evalCacheHit;
     stats[7] = evalCacheNorotHit;
+    stats[8] = evalCacheInsertTime;
+    stats[9] = evalCacheFindTime;
     return stats;
 }
 
 void MCTS::resetTimeStats(){
-    expandTime = evaluateTime = searchTime = copyTime = makeMoveTime = extraTime = evalCacheHit = evalCacheNorotHit = 0;
+    expandTime = evaluateTime = searchTime = copyTime = makeMoveTime = extraTime = 
+    evalCacheHit = evalCacheNorotHit = evalCacheInsertTime = evalCacheFindTime = 0;
 }
 #endif
 
@@ -170,28 +175,18 @@ float Node::searchandPropagate(PolicyValueNet& net){
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         #endif
 
-        //std::vector<PolicyValueOutput> entry;
-
-        // auto m = std::min_element(hashValues.begin(), hashValues.end());
-        // auto minHash = *m;
-        // auto index = std::distance(hashValues.begin(), m);
-
-        // if(!eval_cache.get(minHash, entry)){
-        //     auto eval = net.evaluate(&game, available_moves);                       
-        //     auto [base_eval, base_legal] = rotateNNOutputandLegal(eval, available_moves, index, rowSize); // first rotate into minHash state
-        //     entry = rotateAllNNOutputs(base_eval, base_legal, rowSize);           // make all rotations based on it
-        //     eval_cache.insert(minHash, entry);
-        // }
-        // else if(entry[0].first.size() != available_moves.size()){ // hash collision
-        //     std::cout << "warning! hash collision! Hash value : " << minHash;
-        //     entry = rotateAllNNOutputs(net.evaluate(&game, available_moves), available_moves, rowSize);
-        // }
-        // else{
-        //     evalCacheHit++; // for debugging
-        // }
-
         PolicyValueOutput entry;
-        if(!eval_cache->get(hashValue, entry)){
+
+        #ifdef measureTime
+            std::chrono::steady_clock::time_point find_begin = std::chrono::steady_clock::now();
+        #endif
+        bool cacheHit = eval_cache->get(hashValue, entry);
+        #ifdef measureTime
+            std::chrono::steady_clock::time_point find_end = std::chrono::steady_clock::now();
+            evalCacheFindTime += (std::chrono::duration_cast<std::chrono::microseconds>(find_end - find_begin).count());
+        #endif
+
+        if(!cacheHit){ // cache miss
             // entry = net.evaluate(game);
             // instead, compute chlidren nodes at once.
             std::vector<const Game*> gameBatch;
@@ -203,19 +198,22 @@ float Node::searchandPropagate(PolicyValueNet& net){
 
             std::vector<PolicyValueOutput> entries = net.batchEvaluate(gameBatch);
             entry = entries[0];
+            #ifdef measureTime
+            std::chrono::steady_clock::time_point insert_begin = std::chrono::steady_clock::now();
             eval_cache->insert(hashValue, entry);
 
             for(size_t i=0; i<available_moves.size(); ++i)
                 eval_cache->insert(child[i]->hashValue, entries[i+1]);
+            std::chrono::steady_clock::time_point insert_end = std::chrono::steady_clock::now();
+            evalCacheInsertTime += std::chrono::duration_cast<std::chrono::microseconds>(insert_end - insert_begin).count();
+            #endif
         }
         #ifdef measureTime
         else{
-            evalCacheNorotHit++;
+            evalCacheHit++;
         }
         #endif
 
-        // auto logp = entry[(8-index)%8].first;
-        // auto q = entry[(8-index)%8].second;
         auto logp = entry.first;
         auto q = entry.second;
 
@@ -224,11 +222,31 @@ float Node::searchandPropagate(PolicyValueNet& net){
         evaluateTime += (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
         #endif
 
-        auto p = softmax(logp, available_moves);
-
+        std::vector<float> p = softmax(logp, available_moves);
         for(int i=0; i<available_moves.size(); ++i){
             child[i]->P = p[i];
         }
+
+        // size_t gameBatchSize = std::min(available_moves.size(), 8UL);
+        // std::vector<int> idx(gameBatchSize);
+        // std::iota(idx.begin(), idx.end(), 0);
+
+        // if(available_moves.size() > 8UL){
+        //     std::partial_sort(
+        //         idx.begin(), idx.begin()+gameBatchSize, idx.end(),
+        //         [&](int a, int b){ return child[a]->P > child[b]->P; }
+        //     );
+        // }
+
+        // std::vector<const Game*> gameBatch;
+        // gameBatch.reserve(gameBatchSize);
+        // for(size_t i=0; i<gameBatchSize; ++i)
+        //     gameBatch.push_back(&(child[idx[i]]->game));
+
+        // std::vector<PolicyValueOutput> entries = net.batchEvaluate(gameBatch);
+        // for(size_t i=0; i<gameBatchSize; ++i)
+        //     eval_cache->insert(child[idx[i]]->hashValue, entries[i]);
+
         initQ = q;
         W += q;
         return -q;

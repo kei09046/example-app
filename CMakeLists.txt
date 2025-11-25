@@ -20,7 +20,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # Define the measurement flag as an option
-option(MEASURE_TIME "Enable time measurement" ON)
+# option(MEASURE_TIME "Enable time measurement" ON)
 
 if (MEASURE_TIME)
     add_compile_definitions(measureTime)

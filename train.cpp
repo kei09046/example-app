@@ -228,8 +228,10 @@ void TrainPipeline::start_self_play(MCTS* player, bool is_shown, float temp, int
 				std::cout << "average evaluate time : " << timeStats[1] / sequence.size() << "[us]\n";
 				std::cout << "average makeMove time : " << timeStats[4] / sequence.size() << "[us]\n";
 				std::cout << "average extra time : " << timeStats[5] / sequence.size() << "[us]\n";
+				std::cout << "average cache insert time : " << timeStats[8] / sequence.size() << "[us]\n";
+				std::cout << "average cache find time : " << timeStats[9] / sequence.size() << "[us]\n";
 				std::cout << "eval cache hit rate : " << static_cast<float>(timeStats[6]) / (sequence.size() * n_playout) << "\n";
-				std::cout << "eval norot cache hit rate : " << static_cast<float>(timeStats[7]) / (sequence.size() * n_playout) << "\n";
+				//std::cout << "eval norot cache hit rate : " << static_cast<float>(timeStats[7]) / (sequence.size() * n_playout) << "\n";
 				std::cout << "average move time : " << std::chrono::duration_cast<std::chrono::milliseconds>(middle - begin).count() / sequence.size() << "[ms]\n";
 				std::cout << "move time : " << std::chrono::duration_cast<std::chrono::milliseconds>(middle - begin).count() << "[ms]\n";
 				std::cout << "total time : " << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count() << "[ms]\n";
@@ -397,7 +399,7 @@ void TrainPipeline::run(const int game_batch_num, const int inference_thread_num
 				pause_cv.notify_one();
 			}
             else if (game_buffer->size() > batchSize && !pause_flag) {
-				std::this_thread::sleep_for(std::chrono::milliseconds(400));
+				std::this_thread::sleep_for(std::chrono::milliseconds(1600 / inference_thread_num));
                 train(); 
             }
         }
