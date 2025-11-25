@@ -26,14 +26,14 @@ private:
     const HashValue hashValue; // hash value needed for transition table and evaluation hash, for each dihedral transformation
 
     std::vector<Node*> child;
-    std::vector<std::pair<int, int> > legal;
+    std::vector<std::pair<int, int> > available_moves; // among game.isLegal() moves, consider actually useful moves.
     std::pair<int, int> winmove;
     EvalCache<PolicyValueOutput>* const eval_cache;
     std::unordered_map<HashValue, Node*>* const trans_table;
 
     void expand();
 
-    static std::vector<float> softmax(std::vector<float>& logit);
+    static std::vector<float> softmax(const std::vector<float>& logit, const std::vector<std::pair<int, int>>& available_moves);
 
 public:
     Node(const Game& g, const HashValue hashValue, EvalCache<PolicyValueOutput>* const eval_cache, std::unordered_map<HashValue, Node*>* const trans_table);

@@ -31,14 +31,20 @@ void MCTS::resetTimeStats(){
 
 const Hash hash;
 
-std::vector<float> Node::softmax(std::vector<float>& logit){
-    std::vector<float> exp_logit(logit.size());
-    float max_logit = *std::max_element(logit.begin(), logit.end()); // For numerical stability
+std::vector<float> Node::softmax(const std::vector<float>& logit, const std::vector<std::pair<int, int>>& available_moves){
+    std::vector<float> n_logit;
+    n_logit.reserve(available_moves.size());
+    for(auto& move : available_moves){
+        n_logit.push_back(logit[move.first * rowSize + move.second]);
+    }
+
+    std::vector<float> exp_logit(n_logit.size());
+    float max_logit = *std::max_element(n_logit.begin(), n_logit.end()); // For numerical stability
 
     // Compute exponentials after subtracting max_logit
     float sum_exp = 0.0f;
-    for (size_t i = 0; i < logit.size(); ++i) {
-        exp_logit[i] = std::exp(logit[i] - max_logit);
+    for (size_t i = 0; i < n_logit.size(); ++i) {
+        exp_logit[i] = std::exp(n_logit[i] - max_logit);
         sum_exp += exp_logit[i];
     }
 
@@ -99,7 +105,7 @@ void Node::expand(){
                         childNode = (*trans_table)[newHash];
                     }
                     child.push_back(childNode);
-                    legal.push_back({i, j});
+                    available_moves.push_back({i, j});
                 }
 
                 else if(clr == turn){
@@ -136,7 +142,7 @@ void Node::expand(){
         }
 
         child.push_back(childNode);
-        legal.push_back({rowSize, 0}); // pass
+        available_moves.push_back({rowSize, 0}); // pass
     }
 
     #ifdef measureTime
@@ -154,7 +160,7 @@ float Node::searchandPropagate(PolicyValueNet& net){
         W--;
         return 1.0f;
     }
-    if(legal.size() == 0){ // position is lost
+    if(available_moves.size() == 0){ // position is lost
         W++;
         return -1.0f;
     }
@@ -171,14 +177,14 @@ float Node::searchandPropagate(PolicyValueNet& net){
         // auto index = std::distance(hashValues.begin(), m);
 
         // if(!eval_cache.get(minHash, entry)){
-        //     auto eval = net.evaluate(&game, legal);                       
-        //     auto [base_eval, base_legal] = rotateNNOutputandLegal(eval, legal, index, rowSize); // first rotate into minHash state
+        //     auto eval = net.evaluate(&game, available_moves);                       
+        //     auto [base_eval, base_legal] = rotateNNOutputandLegal(eval, available_moves, index, rowSize); // first rotate into minHash state
         //     entry = rotateAllNNOutputs(base_eval, base_legal, rowSize);           // make all rotations based on it
         //     eval_cache.insert(minHash, entry);
         // }
-        // else if(entry[0].first.size() != legal.size()){ // hash collision
+        // else if(entry[0].first.size() != available_moves.size()){ // hash collision
         //     std::cout << "warning! hash collision! Hash value : " << minHash;
-        //     entry = rotateAllNNOutputs(net.evaluate(&game, legal), legal, rowSize);
+        //     entry = rotateAllNNOutputs(net.evaluate(&game, available_moves), available_moves, rowSize);
         // }
         // else{
         //     evalCacheHit++; // for debugging
@@ -186,12 +192,21 @@ float Node::searchandPropagate(PolicyValueNet& net){
 
         PolicyValueOutput entry;
         if(!eval_cache->get(hashValue, entry)){
-            entry = net.evaluate(&game, legal);                       
+            // entry = net.evaluate(game);
+            // instead, compute chlidren nodes at once.
+            std::vector<const Game*> gameBatch;
+            gameBatch.reserve((1 + available_moves.size()));
+
+            gameBatch.push_back(&game);
+            for(auto c : child)
+                gameBatch.push_back(&(c->game));
+
+            std::vector<PolicyValueOutput> entries = net.batchEvaluate(gameBatch);
+            entry = entries[0];
             eval_cache->insert(hashValue, entry);
-        }
-        else if(entry.first.size() != legal.size()){ // hash collision
-            std::cout << "warning! hash collision! Hash value : " << hashValue << std::endl;
-            entry = net.evaluate(&game, legal);
+
+            for(size_t i=0; i<available_moves.size(); ++i)
+                eval_cache->insert(child[i]->hashValue, entries[i+1]);
         }
         #ifdef measureTime
         else{
@@ -209,9 +224,9 @@ float Node::searchandPropagate(PolicyValueNet& net){
         evaluateTime += (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
         #endif
 
-        auto p = softmax(logp);
+        auto p = softmax(logp, available_moves);
 
-        for(int i=0; i<legal.size(); ++i){
+        for(int i=0; i<available_moves.size(); ++i){
             child[i]->P = p[i];
         }
         initQ = q;
@@ -226,7 +241,7 @@ float Node::searchandPropagate(PolicyValueNet& net){
     #ifdef measureTime
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     #endif
-    for(int i=0; i<legal.size(); ++i){
+    for(int i=0; i<available_moves.size(); ++i){
         pref = ((child[i]->N == 0) ? 0.0f : child[i]->W / child[i]->N) + cPuct * child[i]->P * sqrt(N)/(1 + child[i]->N);
         
         if(maxval < pref){
@@ -247,15 +262,15 @@ float Node::searchandPropagate(PolicyValueNet& net){
 std::pair<int, int> Node::selectMove(float temp){
     if(winmove.first >= 0)
         return winmove;
-    if(legal.size() == 0){ // if lost, resign
+    if(available_moves.size() == 0){ // if lost, resign
         return {-1, -1};
     }
 
-    std::vector<float> weights(legal.size());
-    std::vector<float> cumulative(legal.size());
+    std::vector<float> weights(available_moves.size());
+    std::vector<float> cumulative(available_moves.size());
 
     int maxi, maxn = -1, index;
-    for(int i=0; i<legal.size(); ++i){
+    for(int i=0; i<available_moves.size(); ++i){
         if(child[i]->N > maxn){
             maxn = child[i]->N;
             maxi = i;
@@ -271,14 +286,14 @@ std::pair<int, int> Node::selectMove(float temp){
 
         auto it = std::lower_bound(cumulative.begin(), cumulative.end(), rnd);
         index = std::distance(cumulative.begin(), it);
-        return legal[index];
+        return available_moves[index];
     }
 
-    for(int i=0; i<legal.size(); ++i){
-        std::cout << "move : " << legal[i].first << " " << legal[i].second << " sc: " << child[i]->N << " wc: " << 
+    for(int i=0; i<available_moves.size(); ++i){
+        std::cout << "move : " << available_moves[i].first << " " << available_moves[i].second << " sc: " << child[i]->N << " wc: " << 
         child[i]->W << " initQ : " << child[i]->initQ << " P " << child[i]->P << std::endl;
     }
-    return legal[maxi];
+    return available_moves[maxi];
 }
 
 MoveData Node::selectMoveProb(float temp){
@@ -287,19 +302,19 @@ MoveData Node::selectMoveProb(float temp){
 
     if(winmove.first >= 0)
         return {winmove, visitPortion};
-    if(legal.size() == 0){ // if lost, resign
+    if(available_moves.size() == 0){ // if lost, resign
         return {{-1, -1}, visitPortion};
     }
 
-    std::vector<float> cumulative(legal.size()), weights(legal.size());
+    std::vector<float> cumulative(available_moves.size()), weights(available_moves.size());
     int maxi, maxn = -1;
-    for(int i=0; i<legal.size(); ++i){
+    for(int i=0; i<available_moves.size(); ++i){
         if(child[i]->N > maxn){
             maxn = child[i]->N;
             maxi = i;
         }
         weights[i] = std::pow(child[i]->N, temp);
-        visitPortion[legal[i].first * colSize + legal[i].second] = child[i]->N/N;
+        visitPortion[available_moves[i].first * colSize + available_moves[i].second] = child[i]->N/N;
     }
 
     // std::cout << "visit portion" << std::endl;
@@ -316,16 +331,16 @@ MoveData Node::selectMoveProb(float temp){
         auto it = std::lower_bound(cumulative.begin(), cumulative.end(), rnd);
         size_t index = std::distance(cumulative.begin(), it);
 
-        // std::cout << "make move : " << legal[index].first << " " << legal[index].second << " win count : " << child[index]->W << " visit count : " << child[index]->N <<
+        // std::cout << "make move : " << available_moves[index].first << " " << available_moves[index].second << " win count : " << child[index]->W << " visit count : " << child[index]->N <<
         // " prob : " << child[index]->P << " eval : " << child[index]->initQ << "\n";
 
-        return {legal[index], visitPortion};
+        return {available_moves[index], visitPortion};
     }
 
-    // std::cout << "make move : " << legal[maxi].first << " " << legal[maxi].second << " win count : " << child[maxi]->W << " visit count : " << child[maxi]->N << 
+    // std::cout << "make move : " << available_moves[maxi].first << " " << available_moves[maxi].second << " win count : " << child[maxi]->W << " visit count : " << child[maxi]->N << 
     // " prob : " << child[maxi]->P << " eval : " << child[maxi]->initQ << "\n";
 
-    return {legal[maxi], visitPortion};
+    return {available_moves[maxi], visitPortion};
 }
 
 Node* Node::jump(std::pair<int, int> move){
@@ -335,8 +350,8 @@ Node* Node::jump(std::pair<int, int> move){
     }
 
     int idx = -1;
-    for(int i=0; i<legal.size(); ++i){
-        if(legal[i] == move){
+    for(int i=0; i<available_moves.size(); ++i){
+        if(available_moves[i] == move){
             idx = i;
             return child[idx];
         }
@@ -347,7 +362,7 @@ Node* Node::jump(std::pair<int, int> move){
     game.displayBoardGUI();
     std::cout << std::endl;
     std::cerr << "available options : " << std::endl;
-    for(auto p : legal)
+    for(auto p : available_moves)
         std::cerr << p << " ";
 
     return nullptr;

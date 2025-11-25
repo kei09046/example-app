@@ -169,7 +169,7 @@ void TrainPipeline::start_self_play(MCTS* player, bool is_shown, float temp, int
 
 	while (true) {
 		// 처음 네 수 dirichlet factor 0.5. 
-		state = PolicyValueNet::getData(&game_manager);
+		state = PolicyValueNet::getData(game_manager);
 
 		if(moveCnt < 4)
 			moveProb = player->getMoveProb(temp); // temp : actually 1/temp high temp -> less random

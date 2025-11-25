@@ -5,31 +5,90 @@ using namespace std;
 
 
 // net : action probability 의 log와 value (-1, 1)을 추정한다.
-NetImpl::NetImpl(bool use_gpu = false): cv1(torch::nn::Conv2dOptions(inputDepth, 32, 3).padding(1).bias(false)),
-bn1(torch::nn::BatchNorm2d(32)),
-cv2(torch::nn::Conv2dOptions(32, 64, 3).padding(1).bias(false)),
-bn2(torch::nn::BatchNorm2d(64)),
-cv3(torch::nn::Conv2dOptions(64, 64, 3).padding(1).bias(false)),
-bn3(torch::nn::BatchNorm2d(64)),
-cv4(torch::nn::Conv2dOptions(64, 64, 3).padding(1).bias(false)),
-bn4(torch::nn::BatchNorm2d(64)),
-at_cv3(torch::nn::Conv2dOptions(64, 2, 1).padding(0).bias(false)),
+NetImpl::NetImpl(bool use_gpu = false): cv1(torch::nn::Conv2dOptions(inputDepth, 128, 3).padding(1).bias(false)),
+bn1(torch::nn::BatchNorm2d(128)),
+
+// Residual block 1
+rb1_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb1_bn1(torch::nn::BatchNorm2d(128)),
+rb1_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb1_bn2(torch::nn::BatchNorm2d(128)),
+
+// Residual block 2
+rb2_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb2_bn1(torch::nn::BatchNorm2d(128)),
+rb2_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb2_bn2(torch::nn::BatchNorm2d(128)),
+
+// Residual block 3
+rb3_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb3_bn1(torch::nn::BatchNorm2d(128)),
+rb3_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb3_bn2(torch::nn::BatchNorm2d(128)),
+
+// Residual block 4
+rb4_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb4_bn1(torch::nn::BatchNorm2d(128)),
+rb4_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb4_bn2(torch::nn::BatchNorm2d(128)),
+
+// Residual block 5
+rb5_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb5_bn1(torch::nn::BatchNorm2d(128)),
+rb5_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb5_bn2(torch::nn::BatchNorm2d(128)),
+
+// Residual block 6
+rb6_conv1(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb6_bn1(torch::nn::BatchNorm2d(128)),
+rb6_conv2(torch::nn::Conv2dOptions(128, 128, 3).padding(1).bias(false)),
+rb6_bn2(torch::nn::BatchNorm2d(128)),
+
+// Policy head (unchanged)
+at_cv3(torch::nn::Conv2dOptions(128, 2, 1).bias(false)),
 at_bn3(torch::nn::BatchNorm2d(2)),
-at_fc1(torch::nn::Linear(2 * inputSize, outputSize)),
-v_cv3(torch::nn::Conv2dOptions(64, 1, 1).padding(0).bias(false)),
+at_fc1(2 * inputSize, outputSize),
+
+// Value head (unchanged)
+v_cv3(torch::nn::Conv2dOptions(128, 1, 1).bias(false)),
 v_bn3(torch::nn::BatchNorm2d(1)),
-v_fc1(torch::nn::Linear(inputSize, 128)),
-v_fc2(torch::nn::Linear(128, 1)),
+v_fc1(inputSize, 256),
+v_fc2(256, 1),
 device(use_gpu ? torch::kCUDA : torch::kCPU){
 
 	cv1->to(device);
 	bn1->to(device);
-	cv2->to(device);
-	bn2->to(device);
-	cv3->to(device);
-	bn3->to(device);
-	cv4->to(device);
-	bn4->to(device);
+
+	rb1_conv1->to(device);
+	rb1_bn1->to(device);
+	rb1_conv2->to(device);
+	rb1_bn2->to(device);
+
+	rb2_conv1->to(device);
+	rb2_bn1->to(device);
+	rb2_conv2->to(device);
+	rb2_bn2->to(device);
+
+	rb3_conv1->to(device);
+	rb3_bn1->to(device);
+	rb3_conv2->to(device);
+	rb3_bn2->to(device);
+
+	rb4_conv1->to(device);
+	rb4_bn1->to(device);
+	rb4_conv2->to(device);
+	rb4_bn2->to(device);
+
+	rb5_conv1->to(device);
+	rb5_bn1->to(device);
+	rb5_conv2->to(device);
+	rb5_bn2->to(device);
+
+	rb6_conv1->to(device);
+	rb6_bn1->to(device);
+	rb6_conv2->to(device);
+	rb6_bn2->to(device);
+
 	at_cv3->to(device);
 	at_bn3->to(device);
 	at_fc1->to(device);
@@ -40,12 +99,37 @@ device(use_gpu ? torch::kCUDA : torch::kCPU){
 	
 	register_module("cv1", cv1);
 	register_module("bn1", bn1);
-	register_module("cv2", cv2);
-	register_module("bn2", bn2);
-	register_module("cv3", cv3);
-	register_module("bn3", bn3);
-	register_module("cv4", cv4);
-	register_module("bn4", bn4);
+
+	register_module("rb1_conv1", rb1_conv1);
+	register_module("rb1_bn1", rb1_bn1);
+	register_module("rb1_conv2", rb1_conv2);
+	register_module("rb1_bn2", rb1_bn2);
+	
+	register_module("rb2_conv1", rb2_conv1);
+	register_module("rb2_bn1", rb2_bn1);
+	register_module("rb2_conv2", rb2_conv2);
+	register_module("rb2_bn2", rb2_bn2);
+	
+	register_module("rb3_conv1", rb3_conv1);
+	register_module("rb3_bn1", rb3_bn1);
+	register_module("rb3_conv2", rb3_conv2);
+	register_module("rb3_bn2", rb3_bn2);
+	
+	register_module("rb4_conv1", rb4_conv1);
+	register_module("rb4_bn1", rb4_bn1);
+	register_module("rb4_conv2", rb4_conv2);
+	register_module("rb4_bn2", rb4_bn2);
+
+	register_module("rb5_conv1", rb5_conv1);
+	register_module("rb5_bn1", rb5_bn1);
+	register_module("rb5_conv2", rb5_conv2);
+	register_module("rb5_bn2", rb5_bn2);
+
+	register_module("rb6_conv1", rb6_conv1);
+	register_module("rb6_bn1", rb6_bn1);
+	register_module("rb6_conv2", rb6_conv2);
+	register_module("rb6_bn2", rb6_bn2);
+
 	register_module("at_cv3", at_cv3);
 	register_module("at_bn3", at_bn3);
 	register_module("at_fc1", at_fc1);
@@ -58,9 +142,23 @@ device(use_gpu ? torch::kCUDA : torch::kCPU){
 std::tuple<torch::Tensor, torch::Tensor> NetImpl::forward(const torch::Tensor& state)
 {
 	torch::Tensor x = torch::nn::functional::relu(bn1(cv1(state)));
-	x = torch::nn::functional::relu(bn2(cv2(x)));
-	x = torch::nn::functional::relu(bn3(cv3(x)));
-	x = torch::nn::functional::relu(bn4(cv4(x)));
+	x = torch::nn::functional::relu(rb1_bn1(rb1_conv1(x)));
+	x = torch::nn::functional::relu(rb1_bn2(rb1_conv2(x)));
+
+	x = torch::nn::functional::relu(rb2_bn1(rb2_conv1(x)));
+	x = torch::nn::functional::relu(rb2_bn2(rb2_conv2(x)));
+
+	x = torch::nn::functional::relu(rb3_bn1(rb3_conv1(x)));
+	x = torch::nn::functional::relu(rb3_bn2(rb3_conv2(x)));
+
+	x = torch::nn::functional::relu(rb4_bn1(rb4_conv1(x)));
+	x = torch::nn::functional::relu(rb4_bn2(rb4_conv2(x)));
+
+	x = torch::nn::functional::relu(rb5_bn1(rb5_conv1(x)));
+	x = torch::nn::functional::relu(rb5_bn2(rb5_conv2(x)));
+
+	x = torch::nn::functional::relu(rb6_bn1(rb6_conv1(x)));
+	x = torch::nn::functional::relu(rb6_bn2(rb6_conv2(x)));
 
 	torch::Tensor log_act = torch::nn::functional::relu(at_bn3(at_cv3(x)));
 	log_act = log_act.view({ -1, 2 * inputSize });
@@ -74,14 +172,14 @@ std::tuple<torch::Tensor, torch::Tensor> NetImpl::forward(const torch::Tensor& s
 	return make_tuple(log_act, val);
 }
 
-std::array<float, inputDepth * inputSize> PolicyValueNet::getData(const Game* game){
+std::array<float, inputDepth * inputSize> PolicyValueNet::getData(const Game& game){
     std::array<float, inputDepth * inputSize> ret;
-	color turn = game->getTurn();
+	color turn = game.getTurn();
 	color state;
 
     ret.fill(0.0f);
 	for(int i=0; i<inputSize; ++i){
-		state = game->getBoard(i / colSize, i % colSize);
+		state = game.getBoard(i / colSize, i % colSize);
 		if(state == turn)
 			ret[i] = 1.0f;
 		else if(state == Game::reverseColor(turn))
@@ -96,7 +194,7 @@ std::array<float, inputDepth * inputSize> PolicyValueNet::getData(const Game* ga
     return ret;
 }
 
-std::vector<float> PolicyValueNet::getData(std::vector<const Game*> gameBatch){
+std::vector<float> PolicyValueNet::getData(const std::vector<const Game*>& gameBatch){
 	//std::cout << "get data " << gameBatch.size() << std::endl;
 	std::vector<float> ret(gameBatch.size() * inputDepth * inputSize, 0.0f);
 
@@ -135,51 +233,53 @@ PolicyValueNet::PolicyValueNet(const string& model_file, bool use_gpu): use_gpu(
 	return;
 }
 
+std::vector<PolicyValueOutput>
+PolicyValueNet::batchEvaluate(const std::vector<const Game*>& gameBatch){
+    const int B = gameBatch.size();
+    std::vector<PolicyValueOutput> outputs;
+    outputs.reserve(B);
 
-std::pair< std::vector<std::vector<float>>, std::vector<float> >
-PolicyValueNet::batchEvaluate(std::vector<const Game*> gameBatch, const std::vector<std::vector<std::pair<int, int>>*> legalBatch)
-{
-	int size = gameBatch.size();
-	//std::cout << "batch size : " << size << std::endl;
+    auto options = torch::TensorOptions().dtype(torch::kFloat32);
 
-	auto options = torch::TensorOptions().dtype(torch::kFloat32);
-	torch::Tensor current_state = torch::from_blob(getData(gameBatch).data(), { size, inputDepth, inputRow, inputCol}, options).to(policy_value_net->device);
+    torch::Tensor batch = torch::from_blob(getData(gameBatch).data(), {B, inputDepth, rowSize, colSize}, options);
+    if(use_gpu){
+        batch = batch.to(policy_value_net->device);
+    }
 
-	//std::cout << "batch evaluate" << std::endl;
-	tuple<torch::Tensor, torch::Tensor> res;
-	if (use_gpu) {
-		auto r = policy_value_net->forward(current_state);
-		get<0>(res) = get<0>(r).to(torch::kCPU);
-		get<1>(res) = get<1>(r).to(torch::kCPU);
-	}
-	else {
-		res = policy_value_net->forward(current_state);
-	}
+    // ---- Forward pass ----
+    torch::Tensor policyBatch, valueBatch;
 
-	float* pt = get<0>(res).data_ptr<float>();
-	int temp;
-	std::vector<std::vector<float>> pvfn(size);
+    if(use_gpu){
+        auto r = policy_value_net->forward(batch);
+        policyBatch = std::get<0>(r).to(torch::kCPU);  // [B, outputSize]
+        valueBatch  = std::get<1>(r).to(torch::kCPU);  // [B, 1]
+    } else {
+        auto r = policy_value_net->forward(batch);
+        policyBatch = std::get<0>(r);   // already CPU
+        valueBatch  = std::get<1>(r);
+    }
 
-	// TODO : fix
-	for(int num = 0; num < size; ++num){
-		temp = 0;
-		for (pair<int, int> i : *(legalBatch[num])) {
-			pt += (i.first * colSize + i.second) - temp;
-			temp = i.first * colSize + i.second;
-			pvfn[num].push_back(*pt);
-		}
-	}
+    // ---- Extract each result ----
+    float* pP = policyBatch.data_ptr<float>();
+    float* pV = valueBatch.data_ptr<float>();
 
-	std::vector<float> values(size);
-	torch::Tensor values_tensor = get<1>(res).flatten();  // Ensure it's a 1D tensor
-    std::memcpy(values.data(), values_tensor.data_ptr<float>(), size * sizeof(float));
+    for(int b=0; b<B; ++b){
+        // policy head
+        std::vector<float> pvfn;
+        pvfn.reserve(outputSize);
+        float* src = pP + b * outputSize;
+        for(int i=0; i<outputSize; ++i){
+            pvfn.push_back(src[i]);
+        }
 
-	//std::cout << "batch evaluate finished" << std::endl;
-	return { pvfn, values };
+        float v = pV[b];
+        outputs.push_back({pvfn, v});
+    }
+
+    return outputs;
 }
 
-PolicyValueOutput PolicyValueNet::evaluate(const Game* game, const std::vector<std::pair<int, int> > legal)
-{
+PolicyValueOutput PolicyValueNet::evaluate(const Game& game){
 	auto options = torch::TensorOptions().dtype(torch::kFloat32);
 	torch::Tensor current_state = torch::from_blob(getData(game).data(), { 1, inputDepth, rowSize, colSize }, options).to(policy_value_net->device);
 	tuple<torch::Tensor, torch::Tensor> res;
@@ -194,16 +294,17 @@ PolicyValueOutput PolicyValueNet::evaluate(const Game* game, const std::vector<s
 
 	std::vector<float> pvfn;
 	float* pt = get<0>(res).data_ptr<float>();
-	for (auto [r, c] : legal) {
-		pvfn.push_back(pt[r * colSize + c]);
+	for (size_t i=0; i<outputSize; ++i) {
+		pvfn.push_back(pt[i]);
 	}
 
 	return { pvfn, get<1>(res).index({0, 0}).item<float>() };
 }
 
-// pair<array<float, outputSize>, float> PolicyValueNet::policy_value_fn(array<float, inputDepth * inputSize> state) {
+// PolicyValueOutput PolicyValueNet::evaluate(const Game& game, const std::vector<std::pair<int, int> > legal)
+// {
 // 	auto options = torch::TensorOptions().dtype(torch::kFloat32);
-// 	torch::Tensor current_state = torch::from_blob(state.data(), { 1, inputDepth, inputRow, inputCol }, options).to(policy_value_net->device);
+// 	torch::Tensor current_state = torch::from_blob(getData(game).data(), { 1, inputDepth, rowSize, colSize }, options).to(policy_value_net->device);
 // 	tuple<torch::Tensor, torch::Tensor> res;
 // 	if (use_gpu) {
 // 		auto r = policy_value_net->forward(current_state);
@@ -214,39 +315,13 @@ PolicyValueOutput PolicyValueNet::evaluate(const Game* game, const std::vector<s
 // 		res = policy_value_net->forward(current_state);
 // 	}
 
-// 	float* pt = get<0>(res).data<float>();
-// 	int temp = 0;
-
-// 	for (int i = 0; i < outputSize; ++i) {
-// 		pvfn[i] = exp(*pt);
-// 		pt++;
+// 	std::vector<float> pvfn;
+// 	float* pt = get<0>(res).data_ptr<float>();
+// 	for (auto [r, c] : legal) {
+// 		pvfn.push_back(pt[r * colSize + c]);
 // 	}
 
 // 	return { pvfn, get<1>(res).index({0, 0}).item<float>() };
-// }
-
-// TODO : fix loss update function
-// void PolicyValueNet::train_step(array<float, batchSize * inputDepth * inputSize>& state_batch, array<float, batchSize * outputSize>& nextmove_batch,
-// 	array<float, batchSize>& winner_batch, float lr) {
-
-// 	auto options = torch::TensorOptions().dtype(torch::kFloat32);
-// 	torch::Tensor sb = torch::from_blob(state_batch.data(), { batchSize, inputDepth, inputRow, inputCol }, options).to(policy_value_net->device);
-// 	torch::Tensor mp = torch::from_blob(nextmove_batch.data(), { batchSize, outputSize }, options).to(policy_value_net->device);
-// 	torch::Tensor wb = torch::from_blob(winner_batch.data(), { batchSize }, options).to(policy_value_net->device);
-
-// 	optimizer->zero_grad();
-// 	static_cast<torch::optim::AdamOptions&>(optimizer->param_groups()[0].options()).lr(lr);
-
-// 	torch::Tensor r1, r2;
-// 	tie(r1, r2) = policy_value_net->forward(sb);
-
-// 	torch::Tensor value_loss = torch::nn::functional::mse_loss(r2.view(-1), wb);
-// 	torch::Tensor policy_loss = -torch::mean(torch::sum(mp * r1, 1));
-// 	torch::Tensor loss = value_loss + policy_loss;
-
-// 	loss.backward();
-// 	optimizer->step();
-// 	return;
 // }
 
 void PolicyValueNet::train_step(array<float, batchSize * inputDepth * inputSize>& state_batch, 
