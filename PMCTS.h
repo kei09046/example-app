@@ -46,6 +46,12 @@ public:
     MoveData selectMoveProb(float temperature);
 
     Node* jump(std::pair<int, int> move);
+
+    #ifndef transTable
+    void deleteTree();
+
+    void deleteTree(Node* exception);
+    #endif
 };
 
 class alignas(64) MCTS{

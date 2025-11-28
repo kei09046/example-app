@@ -21,13 +21,18 @@ endif()
 
 # Define the measurement flag as an option
 # option(MEASURE_TIME "Enable time measurement" ON)
+# For training, set trans_table = ON. for very high playout turn it off.
+option(TRANS_TABLE "enable transition table" ON) 
 
 if (MEASURE_TIME)
     add_compile_definitions(measureTime)
 endif()
+if (TRANS_TABLE)
+    add_compile_definitions(transTable)
+endif()
 
 # Create the executable
-add_executable(singlethread 
+add_executable(play 
     main.cpp 
     gamerules.cpp 
     hash.cpp
@@ -43,17 +48,17 @@ add_executable(singlethread
 )
 
 # Link against LibTorch
-target_link_libraries(singlethread "${TORCH_LIBRARIES}")
-target_link_libraries(singlethread Boost::headers)
+target_link_libraries(play "${TORCH_LIBRARIES}")
+target_link_libraries(play Boost::headers)
 
 # Include directories
-target_include_directories(singlethread PRIVATE 
+target_include_directories(play PRIVATE 
     "/home/me/libtorch/include" 
     "/home/me/libtorch/include/torch/csrc/api/include"
 )
 
 # Set C++ standard
-set_property(TARGET singlethread PROPERTY CXX_STANDARD 20)
+set_property(TARGET play PROPERTY CXX_STANDARD 20)
 
 # Ensure build type is not overridden unexpectedly
 if (NOT CMAKE_BUILD_TYPE)

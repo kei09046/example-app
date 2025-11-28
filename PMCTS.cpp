@@ -101,6 +101,7 @@ void Node::expand(){
                     HashValue newHash = hash.computeHashAfterMove(game, {i, j}, hashValue);
                     Node* childNode;
 
+                    #ifdef transTable
                     if(trans_table->count(newHash) == 0){
                         childNode = new Node(ng, newHash, eval_cache, trans_table);
                         (*trans_table)[newHash] = childNode;
@@ -108,6 +109,10 @@ void Node::expand(){
                     else{
                         childNode = (*trans_table)[newHash];
                     }
+                    #endif
+                    #ifndef transTable
+                    childNode = new Node(ng, newHash, eval_cache, trans_table);
+                    #endif
                     child.push_back(childNode);
                     available_moves.push_back({i, j});
                 }
@@ -137,6 +142,7 @@ void Node::expand(){
         HashValue newHash = hash.computeHashAfterMove(game, {rowSize, 0}, hashValue);
         Node* childNode;
 
+        #ifdef transTable
         if(trans_table->count(newHash) == 0){
             childNode = new Node(pass, newHash, eval_cache, trans_table);
             (*trans_table)[newHash] = childNode;
@@ -144,6 +150,10 @@ void Node::expand(){
         else{
             childNode = (*trans_table)[newHash];
         }
+        #endif
+        #ifndef transTable
+        childNode = new Node(pass, newHash, eval_cache, trans_table);
+        #endif
 
         child.push_back(childNode);
         available_moves.push_back({rowSize, 0}); // pass
@@ -245,7 +255,7 @@ float Node::searchandPropagate(PolicyValueNet& net){
     }
     
 
-    int maxi = -1;
+    int maxi = 0;
     float pref, maxval = -1.0f;
 
     #ifdef measureTime
@@ -264,7 +274,7 @@ float Node::searchandPropagate(PolicyValueNet& net){
     searchTime += (std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count());
     #endif
 
-    float r = child[maxi]->searchandPropagate(net); // segfault?
+    float r = child[maxi]->searchandPropagate(net); // rarely, NN eval seems to contain corrupted value.
     W += r;
     return -r;
 }
@@ -378,6 +388,32 @@ Node* Node::jump(std::pair<int, int> move){
     return nullptr;
 }
 
+#ifndef transTable
+void Node::deleteTree(){
+    for(Node* c : child){
+        c->deleteTree();
+    }
+    delete this;
+}
+
+void Node::deleteTree(Node* exception){
+    for(Node* c : child){
+        if(c != exception)
+            c->deleteTree();
+    }
+    delete this;
+}
+#endif
+
+
+MCTS::MCTS(int playout, PolicyValueNet* net, EvalCache* const eval_cache, std::unordered_map<HashValue, Node*>* const trans_table) : 
+net(net), playout(playout), eval_cache(eval_cache), trans_table(trans_table){
+    root = new Node(Game(), hash.baseHash(), eval_cache, trans_table);
+    #ifdef transTable
+    (*trans_table)[hash.baseHash()] = root;
+    #endif
+}
+
 void MCTS::runSimulation(){
     for(int i=0; i<playout; ++i){
         //std::cout << "on playout " << i << std::endl;
@@ -396,25 +432,30 @@ MoveData MCTS::getMoveProb(float temp){
 }
 
 bool MCTS::jump(std::pair<int, int> move){
+    Node* old_root = root;
     root = root->jump(move);
+    #ifndef transTable
+    old_root->deleteTree(root);
+    #endif
     return root != nullptr;
 }
 
 void MCTS::reset(){
+    #ifdef transTable
     for (auto& [hash, node] : *trans_table) {
         delete node;
     }
     trans_table->clear();
+    #endif
+    #ifndef transTable
+    root->deleteTree();
+    #endif
     root = new Node(Game(), hash.baseHash(), eval_cache, trans_table);
+    #ifdef transTable
     (*trans_table)[hash.baseHash()] = root;
+    #endif
 }
 
 void MCTS::updateModel(){
     eval_cache->clear();
-}
-
-MCTS::MCTS(int playout, PolicyValueNet* net, EvalCache* const eval_cache, std::unordered_map<HashValue, Node*>* const trans_table) : 
-net(net), playout(playout), eval_cache(eval_cache), trans_table(trans_table){
-    root = new Node(Game(), hash.baseHash(), eval_cache, trans_table);
-    (*trans_table)[hash.baseHash()] = root;
 }
