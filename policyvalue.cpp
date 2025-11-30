@@ -226,6 +226,17 @@ std::vector<float> PolicyValueNet::getData(const std::vector<const Game*>& gameB
 		for(int i = 3*inputSize; i < 4*inputSize; ++i){
 			ret[temp * num + i] = static_cast<float>(turn);
 		}
+
+		color terr;
+		for(size_t i=0; i<inputSize; ++i){ // channel 4, 5 : indicates territory
+			terr = gameBatch[num]->getScoreBoard(i/colSize, i%colSize);
+			if(terr == BLACK){
+				ret[temp * num + 4*inputSize + i] = 1.0f;
+			}
+			else if(terr == WHITE){
+				ret[temp * num + 5*inputSize + i] = 1.0f;
+			}
+		}
 	}
 
     return ret;
