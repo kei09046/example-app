@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdint>
 #include <vector>
+#include <array>
 
 using u_int = unsigned int;
 
@@ -46,7 +47,7 @@ constexpr u_int outputSize = boardSize + 1; // board place + pass
 
 //mcts constants
 #ifdef dirichletNoise
-constexpr float alpha = 0.03f; // dirichlet noise parameter
+constexpr float alpha = 0.03f * 361 / inputRow / inputCol; // dirichlet noise parameter
 constexpr float eps = 0.25f;   // dirichlet noise weight
 #endif
 constexpr float cPuct = 2.0f;

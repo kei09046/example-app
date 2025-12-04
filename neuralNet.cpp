@@ -151,8 +151,9 @@ PolicyValueNet::PolicyValueNet(const string& model_file, const string& model_typ
 	std::cout << "Model loaded: " << model_file << std::endl;
 }
 
-PolicyValueNet::PolicyValueNet(const string& model_file, bool use_gpu): PolicyValueNet(model_file, string(1, model_file[5]), use_gpu)
-{} // model file name like "modelg10000.pt"
+PolicyValueNet::PolicyValueNet(const string& model_file, bool use_gpu): 
+PolicyValueNet(model_file, string(1, model_file[model_file.rfind("model") + 5]), use_gpu)
+{} // model file name like "./models/modelg10000.pt"
 
 std::vector<PolicyValueOutput>
 PolicyValueNet::batchEvaluate(const std::vector<const Game*>& gameBatch){

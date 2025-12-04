@@ -2,7 +2,7 @@
 #define MULTIMCTS_H
 
 #include "gamerules.h"
-#include "policyvalue.h"
+#include "neuralNet.h"
 #include "random.h"
 #include "threadpool.h"
 #include <vector>
