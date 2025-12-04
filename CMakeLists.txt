@@ -22,13 +22,18 @@ endif()
 # Define the measurement flag as an option
 # option(MEASURE_TIME "Enable time measurement" ON)
 # For training, set trans_table = ON. for very high playout turn it off.
-option(TRANS_TABLE "enable transition table" ON) 
+ option(TRANS_TABLE "enable transition table" ON) 
+# For training, enable dirichlet noise
+ option(DIRICHLET_NOISE "enable dirichlet noise for exploration" ON)
 
 if (MEASURE_TIME)
     add_compile_definitions(measureTime)
 endif()
 if (TRANS_TABLE)
     add_compile_definitions(transTable)
+endif()
+if (DIRICHLET_NOISE)
+    add_compile_definitions(dirichletNoise)
 endif()
 
 # Create the executable
@@ -37,7 +42,8 @@ add_executable(train
     gamerules.cpp 
     hash.cpp
     evalcache.cpp
-    memorypool.cpp 
+    memorypool.cpp
+    dirichlet.cpp 
     PMCTS.cpp 
     policyvalue.cpp 
     random.cpp 

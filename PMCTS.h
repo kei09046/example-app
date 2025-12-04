@@ -7,6 +7,7 @@
 #include "memorypool.h"
 #include "hash.h"
 #include "evalcache.h"
+#include "dirichlet.h"
 #include <vector>
 #include <utility>
 #include <cmath>

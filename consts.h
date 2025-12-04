@@ -43,6 +43,12 @@ constexpr u_int outputCol = colSize;
 constexpr u_int inputSize = inputRow * inputCol;
 constexpr u_int inputDepth = 6;
 constexpr u_int outputSize = boardSize + 1; // board place + pass
+
+//mcts constants
+#ifdef dirichletNoise
+constexpr float alpha = 0.03f; // dirichlet noise parameter
+constexpr float eps = 0.25f;   // dirichlet noise weight
+#endif
 constexpr float cPuct = 2.0f;
 
 //evalcache constants

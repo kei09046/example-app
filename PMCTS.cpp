@@ -211,11 +211,6 @@ float Node::searchandPropagate(PolicyValueNet& net){
             #ifdef measureTime
             std::chrono::steady_clock::time_point insert_begin = std::chrono::steady_clock::now();
             #endif
-
-            // std::cerr << "original policyvalue output : " << std::endl;
-            // for(float x : entries[0].first)
-            //     std::cerr << x << " ";
-            // std::cerr << std::endl;
             
             eval_cache->insert(hashValue, entry);
 
@@ -245,9 +240,18 @@ float Node::searchandPropagate(PolicyValueNet& net){
 
         std::vector<float> p = softmax(logp, available_moves);
 
+        #ifdef dirichletNoise
+        std::vector<float> eta = sample_dirichlet(available_moves.size(), alpha);
+        for(int i=0; i<available_moves.size(); ++i){
+            child[i]->P = (1-eps) * p[i] + eps * eta[i];
+        }
+        #endif
+
+        #ifndef dirichletNoise
         for(int i=0; i<available_moves.size(); ++i){
             child[i]->P = p[i];
         }
+        #endif
 
         initQ = q;
         W += q;
